@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>To-Do Supabase</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.6rem; margin-bottom: 12px; }
+    input, button { padding: 8px; font-size: 1rem; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 6px 0; border-bottom: 1px solid #eee; }
+    .muted { color: #666; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>To-Do (Supabase)</h1>
+  <p class="muted">Leitura é pública. Inserção exige login por e‑mail (magic link).</p>
+
+  <!-- Login -->
+  <div>
+    <input id="email" type="email" placeholder="Seu e-mail para login">
+    <button id="login">Login</button>
+    <button id="logout" style="display:none">Logout</button>
+    <span id="user" class="muted"></span>
+  </div>
+
+  <!-- Inserção de tarefas -->
+  <div style="margin-top:12px;">
+    <input id="t" placeholder="Título da tarefa">
+    <button id="add">Adicionar</button>
+  </div>
+
+  <!-- Lista -->
+  <ul id="list"></ul>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://dworkjjgbafctoaoezod.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3b3JrampnYmFmY3RvYW9lem9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3MzExMzMsImV4cCI6MjA3ODMwNzEzM30.DdjlYvUau9Lbu8mv6OSSV-A0oRCW62ylpWA6Nux3gZs";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function carregar(){
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending:false });
+      if (error) {
+        console.error(error);
+        alert("Erro ao carregar tarefas: " + error.message);
+        return;
+      }
+      document.getElementById('list').innerHTML = (data||[])
+        .map(i => `<li>${i.is_complete ? '✅' : '⬜'} ${i.title}</li>`).join('');
+    }
+
+    async function adicionar(){
+      const title = document.getElementById('t').value.trim();
+      if(!title) return;
+      const { data: user } = await supabase.auth.getUser();
+      if(!user || !user.user) {
+        alert("Você precisa estar logado para adicionar tarefas.");
+        return;
+      }
+      const { error } = await supabase.from('todos').insert({ title });
+      if (error) {
+        alert("Erro ao inserir: " + error.message);
+        return;
+      }
+      document.getElementById('t').value='';
+      carregar();
+    }
+
+    async function login(){
+      const email = document.getElementById('email').value.trim();
+      if(!email) return alert("Informe um e-mail válido.");
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) {
+        alert("Erro no login: " + error.message);
+        return;
+      }
+      alert("Verifique seu e-mail e clique no magic link para autenticar.");
+    }
+
+    async function logout(){
+      await supabase.auth.signOut();
+      atualizarSessaoUI();
+    }
+
+    async function atualizarSessaoUI(){
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      document.getElementById('user').textContent = user ? `Logado: ${user.email}` : "Visitante (apenas leitura)";
+      document.getElementById('logout').style.display = user ? "inline-block" : "none";
+    }
+
+    document.getElementById('add').onclick = adicionar;
+    document.getElementById('login').onclick = login;
+    document.getElementById('logout').onclick = logout;
+
+    supabase.auth.onAuthStateChange((_event, _session) => { atualizarSessaoUI(); carregar(); });
+    atualizarSessaoUI();
+    carregar();
+  </script>
+</body>
+</html>
